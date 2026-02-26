@@ -46,5 +46,14 @@ int main(){
 
     printf("Result with atomic: %d CORRECT\n", total_suma);
 
+    total_suma = 0;
+
+    #pragma omp parallel for reduction(+:total_suma)
+    for (index = 0; index < N; index++){
+        total_suma = total_suma + 1;
+    }
+
+    printf("Result with 'Reduction': %d (CORRECT AND OPTIMIZED)\n", total_suma);
+
     return 0;
 }
