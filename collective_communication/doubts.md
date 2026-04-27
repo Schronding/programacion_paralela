@@ -190,3 +190,39 @@ For edges 1 and 100, it looks like: `(rand() % 100) + 1;`.
 **35. Missing variables in `printf` format strings**
 *Observation:* "My error getting the value 4 was that I never passed the rank variable to fill the placeholder!"
 *Answer:* Exactly! In C, `printf` blindly relies on the variables you explicitly pass to match its `%d` or `%s` format specifiers. If you omit the variable in the function call, it will reach out and read adjacent memory (registers or the stack), leading to unpredictable "phantom" numerical outputs like your `4`.
+
+---
+
+## Exercise 5: MPI_Allreduce & C Formatting
+
+**36. Using `man` for MPI functions in the Terminal**
+*Research Notes:* Yes! If the OpenMPI documentation is installed correctly on your system, you can pull up the manual for any signature directly via the terminal by typing `man MPI_Allreduce`. It specifies the arguments, valid op-flags, and potential errors.
+
+**37. The simplified arguments of `MPI_Allreduce` vs `MPI_Gather`**
+*Doubt:* "What I don't understand is why I don't need to specify the datatypes and the count of sending/receiving messages such as in other MPI functions."
+*Answer:* Functions like `MPI_Gather` and `MPI_Scatter` concatenate (join) arrays, meaning the "received" data size is vastly different from the "sent" data size. `MPI_Reduce` and `MPI_Allreduce` perform mathematical combinations element-by-element (e.g., overlapping them to sum them up). If you send 1 element, the final reduced buffer is still exactly 1 element. Because the send and receive lengths and datatypes are forced to be identical, MPI developers simplified the signature: you only declare `count` (1) and `datatype` (`MPI_INT`) once.
+Also, your intuition was correct: `MPI_Allreduce` is identical to `MPI_Reduce`, it just automatically broadcasts the final answer back to *every* node at the end. That is why it does not require the `root` argument.
+
+**38. Escaping the percentage sign `%` in `printf`**
+*Doubt:* "It seems that I will get an error for the percentage sign. I tried to escape it but it doesn't seem it is enough (\%)."
+*Answer:* In C strings, the backslash `\` escapes text-parser characters like `\n` (newline) or `\t` (tab). However, the `%` symbol is a special token consumed by the `printf` formatter itself. To "escape" it so `printf` physically prints it, you must double it: `%%`.
+
+**39. Logical error in percentage calculation (Integer Division)**
+*Doubt:* "I am getting a logical error but I don't know if it is because I am writing incorrecly the percentage formula..."
+*Answer:* Your formula `(work_load * 100 / total_work)` suffers from pure "integer division". Because both `work_load` and `total_work` are integers, the C compiler computes them purely in whole numbers and destroys the invisible decimals *before* assigning it to your `float percentage`. To fix this, you just need to turn one of the factors into a floating-point number. Changing `100` to `100.0` will force the compiler to execute floating-point division instead: `(work_load * 100.0 / total_work)`.
+
+**40. Formatting floats to 2 decimal places in `printf`**
+*Doubt:* "...Also I don't recall how do I write so the printed value is truncated to just 2 decimals."
+*Answer:* You wrote `%f:2f`, which `printf` evaluates literally as "Format a float here (`%f`), and then simply write the string ':2f'". To limit decimals, place `.2` between the `%` and `f`, which acts as a precision specifier: `%.2f`.
+
+---
+
+## Exercise 5: Final Realizations
+
+**41. Solving Integer Truncation naturally**
+*Observation:* "Indeed it seems that what was missing the values was that I was eating some decimals by not putting any value of the percentage calculation as float."
+*Answer:* Exactly! In C, operations involving only integers automatically discard the fractional remainder (truncation). As soon as you introduced `100.0` (a floating-point constant), you implicitly cast the entire arithmetic expression into an operation governed by standard floating-point rules, preserving your critical decimal accuracy.
+
+**42. Correct Percentage Logic**
+*Observation:* "I had the percentage logic backwards before: it is (particular / total) * 100"
+*Answer:* You hit the nail on the head! The logic is the ratio (`part / whole`) scaled to a fraction out of 100. Due to C's operator precedence (Left-to-Right for multiplication and division), writing `(work_load * 100.0 / total_work)` mathematically evaluates the exact same way as `(work_load / total_work) * 100.0`, but is actually safer in C because it avoids dividing a tiny integer by a large integer first (which might prematurely truncate to 0 before the multiplication if you forgot the `.0`). So your code formulation is the most robust way to calculate it!
