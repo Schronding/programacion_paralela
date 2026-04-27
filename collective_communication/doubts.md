@@ -87,3 +87,30 @@
 2. Manually overwrite the `main` branch pointer (`.git/refs/heads/main`) with the hash of the last good commit (`255cec8c0...`).
 3. Delete the empty, corrupted object file (`rm .git/objects/6e/dbe...`).
 Because Git doesn't touch your actual project files down in the working directory when you simply edit the `.git` metadata directly, all your current code changes are safely preserved as "uncommitted changes". You can now safely run `git add .` and `git commit` to create a fresh, uncorrupted commit of your current state.
+
+**16. Why does `git push` fail after restoring an old local commit?**
+*Doubt:* "Can I force this commit to completely replace whatever is in the repo? I think I used fetch before but that didn't solved the problem... git push rejected (fetch first)."
+*Answer:* 
+- **The cause:** Because we artificially moved your local repository back in time to "delete" the corrupt commit, your local branch `main` is now technically missing the last commit that was already synced to the remote server on GitHub. Git assumes you are behind and rejects normal pushes because it doesn't want you to accidentally overwrite code on the server.
+- **The solution:** Since we *do* want to overwrite the server repository intentionally with your newly uncorrupted local version, you have to bypass Git's safety net using a "force push". Running `git push --force origin main` (or `git push -f origin main`) commands the remote repository to completely mirror your local history, overwriting the conflicted timeline in GitHub entirely.
+
+---
+
+## Exercise 3: MPI_Gather & Output Control
+
+**17. The arguments of MPI_Gather**
+*Doubt:* "I put the order backwards... The correct order is: 1. Slice, 2. Quantity per node, 3. Datatype, 4. The whole array, 5. I don't know how to explain this, 6. Datatype, 7. Destination, 8. Bus of communication (Communicator). They are identical to MPI_Scatter."
+*Answer:* You are correct! `MPI_Gather` has the exact same anatomy as `MPI_Scatter` but logically inversed in its internal mechanism. For argument #5 (which you didn't know how to explain): this is the **Receive Count per Node**. A common mistake is thinking it should be the total size of the final array (e.g., 16). It is not! It is the number of elements the root process receives *from each individual process* (which is 4 in this case). 
+Also, for #8, the proper terminology in MPI is indeed **"Communicator"** mapping all the processes (rather than "bus", which is a hardware networking term, though conceptually similar).
+
+**18. Conditional printing and avoiding output spam**
+*Doubt:* "I think the smart way is simply to put an if statement so only rank 0 can print the complete array, as without the if, I will get a slot number of printed arrays in the console."
+*Answer:* Spot on! Since the code is executed entirely by every process, anything outside an `if` block is run by everyone. If you hadn't wrapped the print statement in `if (rank == 0)`, all 4 processes would have tried to print the final array. Moreover, only rank 0 actually received the fully constructed array from `MPI_Gather` (since it was the target). The other ranks would have printed garbage memory since their `complete_array` was never updated by `MPI_Gather`! 
+
+**19. Operator `*=` and its functionality**
+*Doubt:* "It didn't work as I expected, probably because *= 10 is not doing what I expect..."
+*Answer:* The compound assignment operator `a *= 10` is perfectly correct and behaves exactly like `a = a * 10`. It directly modifies the value inside the array at that specific memory location. Your logic in the loop was flawless.
+
+**20. Formatting arrays outputs (The trailing comma)**
+*Observation:* "The `, ` space at the end of the array is a bit awkward, but I think it is fine."
+*Answer:* This is a classic C output formatting quirk. A common elegant trick to fix it is checking if it's the last iteration of the loop. For example: `printf("%d%s", complete_array[c], (c == ARRAY_SIZE - 1) ? "" : ", ");` will only print the comma if it's not the final element.
