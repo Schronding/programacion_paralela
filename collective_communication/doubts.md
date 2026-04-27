@@ -114,3 +114,79 @@ Also, for #8, the proper terminology in MPI is indeed **"Communicator"** mapping
 **20. Formatting arrays outputs (The trailing comma)**
 *Observation:* "The `, ` space at the end of the array is a bit awkward, but I think it is fine."
 *Answer:* This is a classic C output formatting quirk. A common elegant trick to fix it is checking if it's the last iteration of the loop. For example: `printf("%d%s", complete_array[c], (c == ARRAY_SIZE - 1) ? "" : ", ");` will only print the comma if it's not the final element.
+
+---
+
+## Exercise 4: Random Numbers & MPI_Reduce
+
+**21. Generating random numbers in C**
+*Doubt:* "I recall there was a way to get random numbers in C fairly easy... a mix of division and a multiplication... edges of your random number generator."
+*Answer:* To generate standard random numbers in C, you use the `<stdlib.h>` library for `rand()` and `srand()`, along with `<time.h>` to seed the generator (so it doesn't output the same sequence every execution). The math trick you are trying to remember to set the boundaries (edges) uses the **modulo operator (`%`)**. The formula to get a number between `MIN` and `MAX` is: 
+`(rand() % (MAX - MIN + 1)) + MIN;`
+For edges 1 and 100, it looks like: `(rand() % 100) + 1;`.
+
+**22. Operator tokens for Maximum, Minimum, and Sum in MPI**
+*Doubt:* "I think I recall the functions to get the maximum and minimum were MPI_MAX and MPI_MIN respectively."
+*Answer:* Exactly! `MPI_MAX` and `MPI_MIN` are the correct predefined reduction operation handles in MPI. For summation (as requested in the exercise to add all values), you use `MPI_SUM`.
+
+**23. Arguments of MPI_Reduce**
+*Doubt:* "I don't recall the arguments of MPI_Reduce either... I imagine I need a buffer to store the data, a datatype..."
+*Answer:* You imagine correctly! `MPI_Reduce` consolidates scattered data from all processes into a single variable at the root process. The signature requires 7 arguments:
+1. `sendbuf`: The local variable holding this process's contribution (e.g., `&my_random_number`).
+2. `recvbuf`: The root variable where the final answer is stored (e.g., `&max_result`). Only the root's buffer actually gets the answer!
+3. `count`: Number of elements to reduce (just `1` in this case).
+4. `datatype`: Data type of the variable (e.g., `MPI_INT`).
+5. `op`: The mathematical operation to run (e.g., `MPI_MAX` or `MPI_SUM`).
+6. `root`: ID of the process that will receive the final answer (usually `0`).
+7. `comm`: The communicator network (`MPI_COMM_WORLD`).
+
+**24. Seeding random numbers properly in MPI (`time.h`)**
+*Doubt:* "I know I need time in order to get a unique seed... but I don't know how to do so."
+*Answer:* In standard C, you seed the generator using `srand(time(NULL));` at the beginning of `main()`. However, in MPI, all processes are launched simultaneously. If they all call `time(NULL)`, they will all receive the exact same second and initialize with the identical seed, meaning they will all generate the exact same "random" numbers. To fix this, always add the rank to the seed in MPI: `srand(time(NULL) + rank);`.
+
+**25. Why is the random number going out of bounds?**
+*Observation:* "...the bounds of my array aren't limiting the range correctly..."
+*Answer:* The formula `(rand() % (random_ceiling - random_floor + 1))` generates a chunk of numbers scaled from 0 up to 99 in your case. You forgot to add the minimum (`+ random_floor`) outside the modulo at the very end to shift the range up to 1-100.
+
+**26. Why am I getting identical minimums and maximums (e.g., 83)?**
+*Observation:* "Of those, the minimum is 83 and the maximum is 83"
+*Answer:* Since you didn't execute `srand()`, C defaulted to a seed of `1` for *every* process. Therefore, every single one of your 16 processes calculated the exact same random number (83). The maximum of {83, 83, 83...} is 83, and the minimum is 83!
+
+**27. Why am I getting garbage values in the printed array?**
+*Observation:* "I am getting garbage values... [83, 0, 1303831994, 29586...]"
+*Answer:* You declared `int array[THREADS]` locally in every process, but each process only populates *one* slot (`array[rank] = ...`). The remainder of the array is never initialized in memory. `MPI_Reduce` consolidates a single mathematical result (`min`/`max`), it *does not* consolidate arrays like `MPI_Gather` does! Since rank 0 tries to print the whole array, it prints its own element `array[0]` (the 83) and then raw uninitialized memory for the rest.
+
+**28. Implicit Synchronization in MPI**
+*Doubt:* "I think that each of the copies of this program are running probably concurrently or there are implicit synchronization barriers... otherwise it might print garbage."
+*Answer:* Your intuition is exactly right. Collective operations like `MPI_Reduce`, `MPI_Gather`, and `MPI_Bcast` have an implicit synchronization barrier. Rank 0 literally cannot finish the `MPI_Reduce` function call until it has received the payload from all other participating ranks. They wait for each other.
+
+**29. The "void value not ignored" error in `srand()`**
+*Doubt:* "...error: void value not ignored as it ought to be... I don't see how telling a function time that there is no time (by putting NULL) is going to help me get an unique seed..."
+*Answer:* The error triggers because `srand()` returns `void` (it doesn't return anything). You tried to do `srand(...) + rank`, which tells C to mathematically add `rank` to "nothing". You must do the addition *inside* the parentheses: `srand(time(NULL) + rank);`. Also, passing `NULL` to `time()` does not mean "no time"; it means "I don't want you to store the time in a pointer, just return it directly".
+
+**30. Why is `rank` returning garbage values for the seed?**
+*Answer:* If you look closely at your code, you execute `srand(time(NULL) + rank);` on line 12, but you only assign a value to `rank` with `MPI_Comm_rank` on line 14! Because you used `rank` before initializing it, it passed uninitialized memory garbage as your seed, completely breaking your randomization sequence.
+
+**31. `max` and `sum` getting garbage values in `MPI_Reduce`**
+*Doubt:* "...my `max` and `sum` the ones who are getting garbage values..."
+*Answer:* For `MPI_Reduce`, each processor is supposed to send its individual slice of data. You wrote `MPI_Reduce(&array[rank], ...)`. However, only rank 0 contains the populated `array` (because of `MPI_Gather` just before it). For all the other 15 ranks, `array[rank]` is completely empty/uninitialized memory! The correct variable to send to the reduction process is simply `&random_value`, which holds the local process's data.
+
+**32. The bizarre "rank 4" printing error**
+*Observation:* "...I am still getting that strange rank 4 error... I am rank 4 and the array of random values is..."
+*Answer:* The `if (rank == 0)` block perfectly isolated the code, so it was definitely rank 0 doing the printing. However, your print statement is `printf("I am rank %d...", "[");`. You completely forgot to pass the variable `rank` as an argument to `printf`! Because C doesn't strictly verify variable counts in `printf`, it just grabbed whatever rogue number was sitting in the next memory register or stack, which happened to evaluate to a `4`. You need to use `printf("I am rank %d and the array of random values is [", rank);`.
+
+**33. What does PRRTE Slots and `--use-hwthread-cpus` mean here? (Your research)**
+*Observation:* "There are not enough slots available in the system to satisfy the 16 slots that were requested... I use [use-hwthread-cpus] because when I simply use -np 16 I am not allowed..."
+*Answer:* Standard OpenMPI daemon (PRRTE) sets 1 slot = 1 physical CPU core by default to prevent performance loss from process competition (oversubscription). Because your CPU has 8 physical cores (but 16 threads via hyper-threading), requesting 16 nodes directly makes PRRTE crash defensively. By using `--use-hwthread-cpus`, you are explicitly altering the daemon's rules, instructing it to treat the 16 virtual threads as 16 actual compute slots, perfectly solving your problem.
+
+---
+
+## Exercise 4: Final Realizations
+
+**34. Sending local data vs arrays in MPI Collectives**
+*Observation:* "Only rank 0 has a complete array, the others do not... I just need to send whatever value the slot calculated!"
+*Answer:* Perfect realization! In MPI, variables are strictly local to each process's memory space. Only rank 0's `array` was fully populated (by `MPI_Gather`). Collective reduction operations (`MPI_Reduce`) are explicitly designed to take a single local scalar/buffer from *each* rank (`&random_value`) and collapse them all into a single mathematical result at the root.
+
+**35. Missing variables in `printf` format strings**
+*Observation:* "My error getting the value 4 was that I never passed the rank variable to fill the placeholder!"
+*Answer:* Exactly! In C, `printf` blindly relies on the variables you explicitly pass to match its `%d` or `%s` format specifiers. If you omit the variable in the function call, it will reach out and read adjacent memory (registers or the stack), leading to unpredictable "phantom" numerical outputs like your `4`.
