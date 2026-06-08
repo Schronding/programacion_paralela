@@ -1,5 +1,3 @@
-// 'DND:' means DO NOT DELETE. That is not a comment that I want to get rid of. 
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -32,13 +30,12 @@ int main(int argc, char *argv[]) {
     int i;
     double *payoff;
     payoff = (double *) malloc(mc_cycles*sizeof(double));
-    // Timing
+
     double wall_begin = omp_get_wtime();
     clock_t begin = clock();
     double variance, mean;
-    // DND: All up to this moment these are just declarations that take O(1); constant
-    // time to be executed. 
-    /* DND:  All of these initializations correspond to the serial part, being all of the following
+    // All up to this moment these are just declarations that take O(1); constant time to be executed. 
+    /* All of these initializations correspond to the serial part, being all of the following
     that seem to calculate some arrays, strictly parallel */
 
     double parallel_begin = omp_get_wtime();
@@ -55,16 +52,15 @@ int main(int argc, char *argv[]) {
                     printf(" Random number generator problem : %g %g\n",a,b);
                     exit(0);
                 }
-                /* Standardized normal distribution */
+
                 eps = sqrt(-2.*log(a))*cos(2.*pi*b);
                 S = f0*exp( (mu-0.5*sigma*sigma)*T + sigma*eps*sqrt(T) );
                 payoff[i] = exp(-mu*T)*(S - K);
                 if ( payoff[i] < 0.0 ) payoff[i] = 0.0;
             }
-            /* DND: This loop is just O(n) where n is equal to the number of montacarlo 
-            cycles `mc_cycles`. */
+            /* This loop is just O(n) where n is equal to the number of montacarlo cycles `mc_cycles`. */
     }
-    /* find the mean and variance of the payoff */
+
     mean = 0.0;
     variance = 0.0;
 #pragma omp parallel private ( i )
@@ -72,7 +68,7 @@ int main(int argc, char *argv[]) {
     #pragma omp for reduction ( + : mean)
             for (i=0;i<mc_cycles;i++) {
                 mean += payoff[i];
-                /* DND: Again O(n) */
+                /*Again O(n) */
             }
     }
 
@@ -82,7 +78,7 @@ int main(int argc, char *argv[]) {
             for (i=0;i<mc_cycles;i++) {
                 variance += (mean/mc_cycles-payoff[i])*(mean/mc_cycles-payoff[i]);
             }
-            /* DND: O(n) */
+            /* O(n) */
     }
     double parallel_end = omp_get_wtime();
     double parallel_time = parallel_end - parallel_begin;
@@ -106,19 +102,17 @@ int main(int argc, char *argv[]) {
     printf(" Total Wall Time (Real Time): %g seconds\n", total_time);
     printf("   ↳ Parallel execution time: %g seconds\n", parallel_time);
     printf("   ↳ Serial execution time:   %g seconds\n", serial_time);
-    /* Analytic result */
     double d1 = ( log(f0/K)+(mu+0.5*sigma*sigma)*T )/( sigma*sqrt(T) );
     double d2 = d1 - sigma*sqrt(T);
     double price = f0*NoD(d1) - K*exp(-mu*T)*NoD(d2);
     printf(" Analytic BS result: %g\n",price);
     free(payoff);
 
-    /* DND: O(1) */
+    /* All of these take O(1) */
     return 0;
 }
-/* DND: The overall complexity of the algorithm is O(n) 
-In the parallel version we have that the temporal complexity is
-dropped to O(1). */
+/* The overall complexity of the algorithm is O(n). In the parallel version we have that the temporal complexity is
+dropped to O(N/P) where P is the number of processors. . */
 
 // Cumululative Normal Distribution Function
 double NoD(double x) {
@@ -153,7 +147,10 @@ double NoD(double x) {
         return 1.-N;
     }
 }
-/* DND: This part is O(1) */
+/* This part is O(1) */
+
+
+/* Execution times below */
 
 /* DND: As I got 
  ./final_proyect.bin 5 6 9 10 12 52
@@ -458,13 +455,3 @@ Monte Carlo cycles: 52
 
  
  */
-
- /*  ¿El overhead de enviar mensajes en MPI destruyó la ganancia de cómputo en 
- tamaños de problema pequeños? 
-
- Yo creo que si lo hizo. En la ejecucion con un solo hilo encontre velocidades
- mas rapidas que cuando tenia 2. No continue a ver si el trend seguia pero 
- es probable que se haya mantenido hasta cuando el numero de hilos fue tan alto
- que la latencia de mover los datos supero al calculo del Black-Schopes equation.
- 
-*/

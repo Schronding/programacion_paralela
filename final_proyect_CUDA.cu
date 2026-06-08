@@ -1,4 +1,3 @@
-// 'DND:' means DO NOT DELETE. That is not a comment that I want to get rid of. 
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -42,7 +41,7 @@ __global__ void compute_payoff(curandState *states,
 			states[i] = local_state;
 			return;
 		}
-		/* Standardized normal distribution */
+
 		double eps = sqrt(-2.0 * log(a)) * cos(2.0 * pi * b);
 		double S = f0 * exp((mu - 0.5 * sigma * sigma) * T + sigma * eps * sqrt(T));
 		double p = exp(-mu * T) * (S - K);
@@ -92,14 +91,10 @@ int main(int argc, char *argv[]) {
 	double pi = 4.*atan(1.0);
 	double *payoff;
 	payoff = (double *) malloc(mc_cycles*sizeof(double));
-	// Timing
+
 	double wall_begin = now_seconds();
 	clock_t begin = clock();
 	double variance, mean;
-	// DND: All up to this moment these are just declarations that take O(1); constant
-	// time to be executed. 
-	/* DND:  All of these initializations correspond to the serial part, being all of the following
-	that seem to calculate some arrays, strictly parallel */
 
 	double parallel_begin = now_seconds();
 
@@ -127,29 +122,21 @@ int main(int argc, char *argv[]) {
 		mu,
 		pi
 	);
-	/* DND: This loop is just O(n) where n is equal to the number of montacarlo 
-	cycles `mc_cycles`. */
 
-	/* find the mean and variance of the payoff */
 	mean = 0.0;
 	variance = 0.0;
 	cudaMemset(d_mean, 0, sizeof(double));
 	reduce_mean<<<blocks, threads_per_block>>>(d_payoff, mc_cycles, d_mean);
 	cudaMemcpy(&mean, d_mean, sizeof(double), cudaMemcpyDeviceToHost);
-	/* DND: Again O(n) */
 
 	double mean_value = mean / mc_cycles;
 	cudaMemset(d_variance, 0, sizeof(double));
 	reduce_variance<<<blocks, threads_per_block>>>(d_payoff, mc_cycles, mean_value, d_variance);
 	cudaMemcpy(&variance, d_variance, sizeof(double), cudaMemcpyDeviceToHost);
-	/* DND: O(n) */
 
 	double parallel_end = now_seconds();
 	double parallel_time = parallel_end - parallel_begin;
 
-	/* Here is where the parallel part ends and the sequential one starts again. To calculate
-	the speed up I would need to know how much time it takes for the sequential and parallel
-	parts to be executed. */
 	variance /= mc_cycles;
 	mean /= mc_cycles;
 	double std = sqrt(variance);
@@ -166,7 +153,7 @@ int main(int argc, char *argv[]) {
 	printf(" Total Wall Time (Real Time): %g seconds\n", total_time);
 	printf("   -> Parallel execution time: %g seconds\n", parallel_time);
 	printf("   -> Serial execution time:   %g seconds\n", serial_time);
-	/* Analytic result */
+
 	double d1 = ( log(f0/K)+(mu+0.5*sigma*sigma)*T )/( sigma*sqrt(T) );
 	double d2 = d1 - sigma*sqrt(T);
 	double price = f0*NoD(d1) - K*exp(-mu*T)*NoD(d2);
@@ -181,11 +168,7 @@ int main(int argc, char *argv[]) {
 	/* DND: O(1) */
 	return 0;
 }
-/* DND: The overall complexity of the algorithm is O(n) 
-In the parallel version we have that the temporal complexity is
-dropped to O(1). */
 
-// Cumululative Normal Distribution Function
 double NoD(double x) {
 	double gamma = 0.2316419;
 	double a1 = 0.319381530;
@@ -218,13 +201,3 @@ double NoD(double x) {
 		return 1.-N;
 	}
 }
-/* DND: This part is O(1) */
-/*  ¿La latencia del acceso a la memoria global en la 
- GPU limitó los GFLOPS?
- 
- Yo creo que si. Practicamente todas mis funciones hacen uso del keyword
- `__global__` y eso me hace pensar que al ser un programa "tan pequenio" este 
- trayecto realmente no vale la pena y hace que el programa sea lento para este
- caso en particular: cuando solo ejecutamos la ecuacion una sola vez en lugar 
- de hacerlo una y otra vez. 
- */

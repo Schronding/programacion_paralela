@@ -30,6 +30,7 @@ int main(int argc, char *argv[]) {
      * procesos están sincronizados en ese punto de ejecución exacto, evitando que un 
      * emisor sature la red o avance demasiado rápido.
      */
+    
     for (int i = 0; i < 5; i++) {
         if (rank == 0) {
             data = i;

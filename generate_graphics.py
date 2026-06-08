@@ -25,29 +25,44 @@ def run_openmp_benchmark(f0, K, T, sigma, mu, mc_cycles):
             
     return threads, times
 
-def plot_speedup(threads, times, mc_cycles):
+def plot_combined_metrics(threads, times, mc_cycles):
     T_1 = times[0]
     speedup_empirico = [T_1 / tp if tp else 0 for tp in times]
     speedup_ideal = threads
+    eficiencia = [(sp / p) * 100 for sp, p in zip(speedup_empirico, threads)]
     
-    plt.figure(figsize=(10, 6))
-    plt.plot(threads, speedup_ideal, 'k--', marker='s', label='Speedup Teórico Ideal (Lineal)')
-    plt.plot(threads, speedup_empirico, 'r-', marker='o', linewidth=2, label=f'Speedup Empírico (N={mc_cycles})')
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
     
-    plt.title(f'Curva de Escalabilidad en OpenMP\n(Simulación Monte Carlo N={mc_cycles})', fontsize=14)
-    plt.xlabel('Número de Hilos (P)', fontsize=12)
-    plt.ylabel('Speedup (Sp)', fontsize=12)
-    plt.xticks(threads)
-    plt.grid(True, linestyle=':', alpha=0.7)
-    plt.legend(fontsize=11)
+    ax1.plot(threads, speedup_ideal, 'k--', marker='s', label='Speedup Teórico Ideal')
+    ax1.plot(threads, speedup_empirico, 'r-', marker='o', linewidth=2.5, label=f'Speedup Empírico')
+    ax1.set_title(f'Curva de Escalabilidad (N={mc_cycles})', fontsize=14, fontweight='bold')
+    ax1.set_xlabel('Número de Hilos (P)', fontsize=12)
+    ax1.set_ylabel('Speedup (Sp)', fontsize=12)
+    ax1.set_xticks(threads)
+    ax1.grid(True, linestyle=':', alpha=0.7)
+    ax1.legend(fontsize=11)
     
-    filename = f'curva_escalabilidad_N{mc_cycles}.png'
+    ax2.plot(threads, eficiencia, 'b-', marker='^', linewidth=2.5, label='Eficiencia Empírica')
+    ax2.set_title(f'Curva de Eficiencia (N={mc_cycles})', fontsize=14, fontweight='bold')
+    ax2.set_xlabel('Número de Hilos (P)', fontsize=12)
+    ax2.set_ylabel('Eficiencia (%)', fontsize=12)
+    ax2.set_xticks(threads)
+    ax2.set_ylim(-5, 105) 
+    ax2.grid(True, linestyle=':', alpha=0.7)
+    ax2.legend(fontsize=11)
+    
+    plt.tight_layout()
+    filename = f'metricas_completas_N{mc_cycles}.png'
     plt.savefig(filename, dpi=300, bbox_inches='tight')
-    print(f"¡Gráfico guardado exitosamente como {filename}!\n")
+    print(f"\n¡Gráfico doble guardado exitosamente como {filename}!")
 
 if __name__ == "__main__":
-    
     f0, K, T_exp, sigma, mu = 5, 6, 9, 12, 52
     
-    threads, times_52 = run_openmp_benchmark(f0, K, T_exp, sigma, mu, 52)
-    plot_speedup(threads, times_52, 52)
+    print("\nEjecutando escenario microscópico (N=52)...")
+    threads_52, times_52 = run_openmp_benchmark(f0, K, T_exp, sigma, mu, 52)
+    plot_combined_metrics(threads_52, times_52, 52)
+    
+    print("\nEjecutando escenario de carga media (N=10000)...")
+    threads_10k, times_10k = run_openmp_benchmark(f0, K, T_exp, sigma, mu, 10000)
+    plot_combined_metrics(threads_10k, times_10k, 10000)
