@@ -11,7 +11,6 @@ int main(int argc, char **argv) {
 
     const int tag = 0;
 
-    /* Simula un resultado parcial local de cada proceso. */
     double parcial = 100.0 + rank;
 
     if (rank == 0) {
